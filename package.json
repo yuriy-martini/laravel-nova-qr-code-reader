@@ -16,7 +16,6 @@
     },
     "dependencies": {
         "vue": "^2.5.0",
-        "vue-qrcode-component": "^2.1.1",
         "vue-qrcode-reader": "^2.1.1"
     }
 }

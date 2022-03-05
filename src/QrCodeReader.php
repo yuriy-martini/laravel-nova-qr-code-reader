@@ -2,18 +2,12 @@
 
 namespace Tsungsoft\QrCodeReader;
 
-use Laravel\Nova\Contracts\RelatableField;
+use Exception;
 use Laravel\Nova\Fields\Field;
-use Laravel\Nova\Fields\FormatsRelatableDisplayValues;
-use Laravel\Nova\Fields\ResolvesReverseRelation;
-use Laravel\Nova\Fields\ResourceRelationshipGuesser;
 use Laravel\Nova\Http\Requests\NovaRequest;
 
-class QrCodeReader extends Field implements RelatableField
+class QrCodeReader extends Field
 {
-    use FormatsRelatableDisplayValues;
-    use ResolvesReverseRelation;
-
     /**
      * The field's component.
      *
@@ -22,189 +16,41 @@ class QrCodeReader extends Field implements RelatableField
     public $component = 'qr-code-reader';
 
     /**
-     * The field's resource
-     *
-     * @var string
-     */
-    public $resource;
-
-    /**
-     * The class name of the related resource.
-     *
-     * @var string
-     */
-    public $resourceClass;
-
-    /**
-     * The URI key of the related resource.
-     *
-     * @var string
-     */
-    public $resourceName;
-
-    /**
-     * The name of the Eloquent "belongs to" relationship.
-     *
-     * @var string
-     */
-    public $belongsToRelationship;
-
-    /**
-     * The key of the related Eloquent model.
-     *
-     * @var string
-     */
-    public $belongsToId;
-
-    /**
-     * The column that should be displayed for the field.
-     *
-     * @var \Closure
-     */
-    public $display;
-
-    /**
-     * Indicates if the related resource can be viewed.
-     *
-     * @var bool
-     */
-    public $viewable = true;
-
-    /**
      * default value for this field
      */
     public $canSubmit = false;
-    public $canInput = false;
-    public $qrSizeIndex = 30;
-    public $qrSizeDetail = 100;
-    public $qrSizeForm = 50;
-    public $displayValue = false;
-    public $relationship = false;
+
     public $displayWidth = "auto";
+
+    /**
+     * @var Field
+     */
+    private $field;
 
     /**
      * Create a new field.
      *
-     * @param string $name
-     * @param string|null $attribute
-     * @param string|null $resource
+     * @param Field $field
      */
-    public function __construct($name, $attribute = null, $resource = null)
+    public function __construct(Field $field)
     {
-        parent::__construct($name, $attribute);
+        parent::__construct($field->name, $field->attribute, $field->resolveCallback);
 
-        $resource = $resource ?? ResourceRelationshipGuesser::guessResource($name);
-        if(class_exists($resource)) {
-            $this->resourceClass = $resource;
-            $this->resourceName = $resource::uriKey();
-            $this->belongsToRelationship = $this->attribute;
-
-            $this->relationship = true;
-        }
+        $this->field = $field;
     }
 
-    /**
-     * Resolve the field's value.
-     *
-     * @param  mixed  $resource
-     * @param  string|null  $attribute
-     * @return void
-     */
-    public function resolve($resource, $attribute = null)
-    {
-        $value = null;
-
-        if($this->relationship) {
-            if ($resource->relationLoaded($this->attribute)) {
-                $value = $resource->getRelation($this->attribute);
-            }
-
-            if (! $value) {
-                // bikin relation dari column yang disave
-                // tidak boleh diganti karena akan digunakan untuk penyimpanan data
-
-                $index = strpos($this->attribute, '_id');
-                if($index > 0) {
-                    $relationshipName = substr($this->attribute, 0, $index);
-                }
-                else {
-                    $relationshipName = $this->attribute;
-                }
-                $value = $resource->{$relationshipName}()->withoutGlobalScopes()->getResults();
-            }
-
-            if ($value) {
-                $this->belongsToId = $value->getKey();
-                $resource = new $this->resourceClass($value);
-                $this->value = $this->formatDisplayValue($resource);
-                $this->viewable = $this->viewable && $resource->authorizedToView(request());
-            }
-        }
-        else {
-            if(! $value) {
-                $value = $resource->{$this->attribute};
-            }
-            if($value) {
-                $this->value = $value;
-                $this->viewable = false;
-            }
-        }
-    }
-
-    public function canSubmit($canSubmit = true)
+    public function canSubmit($canSubmit = true): self
     {
         $this->canSubmit = $canSubmit;
 
         return $this;
     }
 
-    public function canInput($canInput = true)
-    {
-        $this->canInput = $canInput;
-
-        return $this;
-    }
-
-    public function qrSizeIndex($qrSizeIndex = 30)
-    {
-        $this->qrSizeIndex = $qrSizeIndex;
-
-        return $this;
-    }
-
-    public function qrSizeDetail($qrSizeDetail = 100)
-    {
-        $this->qrSizeDetail = $qrSizeDetail;
-
-        return $this;
-    }
-
-    public function qrSizeForm($qrSizeForm = 50)
-    {
-        $this->qrSizeForm = $qrSizeForm;
-
-        return $this;
-    }
-
-    public function displayValue($displayValue = true)
-    {
-        $this->displayValue = $displayValue;
-
-        return $this;
-    }
-
-    public function viewable($viewable = true)
-    {
-        $this->viewable = $viewable;
-
-        return $this;
-    }
-
     /**
-     * @param  string  $displayWidth
+     * @param string $displayWidth
      * @return $this
      */
-    public function displayWidth(string $displayWidth)
+    public function displayWidth(string $displayWidth): self
     {
         $this->displayWidth = $displayWidth;
 
@@ -212,34 +58,116 @@ class QrCodeReader extends Field implements RelatableField
     }
 
     /**
+     * Set the validation rules for the field.
+     *
+     * @param callable|array|string $rules
+     * @return $this
+     */
+    public function rules($rules)
+    {
+        $this->field->rules($rules);
+
+        return $this;
+    }
+
+    /**
+     * Get the validation rules for this field.
+     *
+     * @param NovaRequest $request
+     * @return array
+     */
+    public function getRules(NovaRequest $request)
+    {
+        return $this->field->getRules($request);
+    }
+
+    /**
+     * Get the creation rules for this field.
+     *
+     * @param NovaRequest $request
+     * @return array|string
+     */
+    public function getCreationRules(NovaRequest $request)
+    {
+        return $this->field->getCreationRules($request);
+    }
+
+    /**
+     * Set the creation validation rules for the field.
+     *
+     * @param callable|array|string $rules
+     * @return $this
+     */
+    public function creationRules($rules)
+    {
+        $this->field->creationRules($rules);
+
+        return $this;
+    }
+
+    /**
+     * Get the update rules for this field.
+     *
+     * @param NovaRequest $request
+     * @return array
+     */
+    public function getUpdateRules(NovaRequest $request)
+    {
+        return $this->field->getUpdateRules($request);
+    }
+
+    /**
+     * Set the creation validation rules for the field.
+     *
+     * @param callable|array|string $rules
+     * @return $this
+     */
+    public function updateRules($rules)
+    {
+        $this->field->updateRules($rules);
+
+        return $this;
+    }
+
+    /**
+     * @param $name
+     * @return string
+     * @throws Exception
+     */
+    function __get($name)
+    {
+        if (isset($this->$name)) {
+            return $this->$name;
+        } elseif (isset($this->field->$name)) {
+            return $this->field->$name;
+        }
+
+        throw new Exception("Undefined property \"$name\"");
+    }
+
+    public function __call($method, $arguments)
+    {
+        if (method_exists($this->field, $method)) {
+            return call_user_func_array($this->field->$method, $arguments);
+        }
+
+        return parent::__call($method, $arguments);
+    }
+
+    /**
      * Prepare the field for JSON serialization.
      *
      * @return array
      */
-    public function jsonSerialize()
+    public function jsonSerialize(): array
     {
-        $meta = [
-            'qrSizeIndex' => $this->qrSizeIndex,
-            'qrSizeDetail' => $this->qrSizeDetail,
-            'qrSizeForm' => $this->qrSizeForm,
-            'canSubmit' => $this->canSubmit,
-            'canInput' => $this->canInput,
-            'displayValue' => $this->displayValue,
-            'viewable' => $this->viewable,
-            'displayWidth' => $this->displayWidth,
-        ];
-
-        if($this->relationship) {
-            $relationshipMeta = [
-                'resourceName' => $this->resourceName,
-                'label' => forward_static_call([$this->resourceClass, 'label']),
-                'singularLabel' => $this->singularLabel ?? $this->name ?? forward_static_call([$this->resourceClass, 'singularLabel']),
-                'belongsToRelationship' => $this->belongsToRelationship,
-                'belongsToId' => $this->belongsToId,
-                'reverse' => $this->isReverseRelation(app(NovaRequest::class)),
-            ];
-            $meta = array_merge($meta, $relationshipMeta);
-        }
-        return array_merge(parent::jsonSerialize(), $meta);
+        return array_merge(
+            [
+                'field' => $this->field->jsonSerialize(),
+                'canSubmit' => $this->canSubmit,
+                'displayWidth' => $this->displayWidth,
+            ],
+            parent::jsonSerialize()
+        );
     }
 }

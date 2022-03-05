@@ -1,74 +1,70 @@
 <template>
-    <default-field :field="field" :errors="errors">
-        <template slot="field">
-            <div class="flex">
-                <vue-q-r-code-component v-if="!canInput" v-show="value" :text="value" :size="qrSizeForm"></vue-q-r-code-component>
-                <div v-else>
-                    <input
-                        :id="field.name"
-                        type="text"
-                        class="w-full form-control form-input form-input-bordered"
-                        :class="errorClasses"
-                        :placeholder="field.name"
-                        v-model="value"
-                        :disabled="isReadonly"
-                    />
-                </div>
-                <button class="btn btn-default btn-primary ml-3" @click.prevent="showModal = true">{{ __('Scan') }}</button>
-            </div>
-            <camera-capture-modal :displayWidth="displayWidth" :showSubmit="showSubmit" v-if="showModal" @close="showModal = false" @decoded="scanData"></camera-capture-modal>
-        </template>
-    </default-field>
+  <div>
+    <component
+        :is="`form-${field.field.component}`"
+        ref="field"
+        :resource-id="resourceId"
+        :resource-name="resourceName"
+        :via-resource="viaResource"
+        :via-resource-id="viaResourceId"
+        :via-relationship="viaRelationship"
+        :field="field.field"
+        :errors="errors"
+        style="border-bottom: none"
+    />
+
+    <div class="flex border-b border-40 pb-6" style="margin-top: -1.5rem;">
+      <div class="w-1/5"></div>
+      <div class="w-1/2 px-8">
+        <button
+            class="btn btn-default btn-primary"
+            style="top: 1.5rem; left: 70%"
+            @click.prevent="showModal = true"
+        >{{ __('Scan') }}
+        </button>
+      </div>
+    </div>
+
+    <camera-capture-modal
+        v-if="showModal"
+        :display-width="field.displayWidth"
+        :show-submit="field.canSubmit"
+        @close="showModal = false"
+        @decoded="scanData"
+    />
+  </div>
 </template>
 
 <script>
-    import CameraCaptureModal from "./CameraCaptureModal"
-    import VueQRCodeComponent from 'vue-qrcode-component'
-    import { FormField, HandlesValidationErrors } from 'laravel-nova'
+import CameraCaptureModal from "./CameraCaptureModal"
+import {FormField, HandlesValidationErrors} from 'laravel-nova'
 
-    export default {
-        components: { CameraCaptureModal, VueQRCodeComponent },
+export default {
+  components: {CameraCaptureModal},
 
-        mixins: [FormField, HandlesValidationErrors],
+  mixins: [FormField, HandlesValidationErrors],
 
-        props: ['resourceName', 'resourceId', 'field'],
+  props: ['resourceName', 'resourceId', 'field'],
 
-        data() {
-            return {
-                showModal: false,
-                showSubmit: this.field.canSubmit,
-                canInput: this.field.canInput,
-                qrSizeForm: this.field.qrSizeForm,
-                displayWidth: this.field.displayWidth,
-            }
-        },
-
-        methods: {
-            scanData(decodedString) {
-                this.showModal = false
-                this.value = decodedString
-            },
-
-            /*
-             * Set the initial, internal value for the field.
-             */
-            setInitialValue() {
-                this.value = this.field.value || ''
-            },
-
-            /**
-             * Fill the given FormData object with the field's internal value.
-             */
-            fill(formData) {
-                formData.append(this.field.attribute, this.value || '')
-            },
-
-            /**
-             * Update the field's internal value.
-             */
-            handleChange(value) {
-                this.value = value
-            },
-        },
+  data() {
+    return {
+      showModal: false,
     }
+  },
+
+  methods: {
+    scanData(decodedString) {
+      this.showModal = false
+
+      Nova.$emit(this.field.field.attribute + '-value', decodedString)
+    },
+
+    /**
+     * Fill the given FormData object with the field's internal value.
+     */
+    fill(formData) {
+      this.$refs.field.fill(formData)
+    },
+  },
+}
 </script>
